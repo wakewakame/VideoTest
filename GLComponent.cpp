@@ -49,8 +49,8 @@ void GLComponent::render()
 
 	glViewport(0, 0, roundToInt(desktopScale * getWidth()), roundToInt(desktopScale * getHeight()));
 
-	graphics->fill(0.0, 0.0, 0.0, 0.5);
-	graphics->stroke(0.0, 0.0, 0.0, 0.5);
+	graphics->fill(0.0, 1.0, 0.0, 0.0);
+	graphics->stroke(1.0, 0.0, 0.0, 1.0);
 	graphics->rect(-0.5, -0.5, 0.5, 0.5);
 }
 

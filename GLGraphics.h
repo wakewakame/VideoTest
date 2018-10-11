@@ -45,10 +45,10 @@ public:
 		fill(0.0, 0.0, 0.0, 0.0);
 	}
 	inline void stroke(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
-		fillColor.r = r;
-		fillColor.g = g;
-		fillColor.b = b;
-		fillColor.a = a;
+		strokeColor.r = r;
+		strokeColor.g = g;
+		strokeColor.b = b;
+		strokeColor.a = a;
 	}
 	inline void stroke(GLfloat r, GLfloat g, GLfloat b) {
 		fill(r, g, b, 1.0);
