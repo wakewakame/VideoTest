@@ -51,16 +51,16 @@ public:
 		strokeColor.a = a;
 	}
 	inline void stroke(GLfloat r, GLfloat g, GLfloat b) {
-		fill(r, g, b, 1.0);
+		stroke(r, g, b, 1.0);
 	}
 	inline void stroke(GLfloat gray, GLfloat a) {
-		fill(gray, gray, gray, a);
+		stroke(gray, gray, gray, a);
 	}
 	inline void stroke(GLfloat gray) {
-		fill(gray, gray, gray, 1.0);
+		stroke(gray, gray, gray, 1.0);
 	}
 	inline void noStroke() {
-		fill(0.0, 0.0, 0.0, 0.0);
+		stroke(0.0, 0.0, 0.0, 0.0);
 	}
 	inline void filter(Shader &shader) {
 		currentShader = &shader;

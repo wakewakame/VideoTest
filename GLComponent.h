@@ -12,12 +12,19 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "GLGraphics.h"
+#include "VideoTexture.h"
+
+///debug
+#include <Windows.h>
+///debug
 
 class GLComponent : public OpenGLAppComponent
 {
 protected:
 	std::unique_ptr<GLGraphics> graphics;
 	std::unique_ptr<Shader> shader;
+	OpenGLTexture videoTex;
+	FF::VideoTexture ffVideoTex;
 
 public:
 	GLComponent();

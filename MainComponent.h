@@ -10,7 +10,6 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 
-#include "FFmpegWrapper.h"
 #include "GLComponent.h"
 
 //==============================================================================

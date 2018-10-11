@@ -53,10 +53,10 @@ void GLGraphics::rect(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2) {
 		shape->beginShape(Shape::TRIANGLE_STRIP, true);
 		if (currentShader != nullptr) shape->setShader(*currentShader);
 		shape->setColor(fillColor.r, fillColor.g, fillColor.b, fillColor.a);
-		shape->vertex(x1, y1);
-		shape->vertex(x2, y1);
-		shape->vertex(x2, y2);
-		shape->vertex(x1, y2);
+		shape->vertex(x1, y1, 0.0, 0.0);
+		shape->vertex(x2, y1, 1.0, 0.0);
+		shape->vertex(x2, y2, 1.0, 1.0);
+		shape->vertex(x1, y2, 0.0, 1.0);
 		shape->index(0);
 		shape->index(3);
 		shape->index(1);

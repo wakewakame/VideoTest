@@ -23,16 +23,29 @@ GLComponent::~GLComponent()
 void GLComponent::initialise()
 {
 	graphics.reset(new GLGraphics(openGLContext));
+	ffVideoTex.open("G:\\Žv‚¢o\\Dropbox\\Dropbox\\C++\\ffmpeg_test\\ffmpeg_test\\sync-test-doubleNTSC30min.mp4");
 	shader.reset(new Shader(openGLContext));
 	shader->loadShader(
 R"(
+	varying vec2 vUv;
+	varying vec4 vColor;
 
+	uniform sampler2D texture;
+
+	void main()
+	{
+		vec3 color = texture2D(texture, vUv).rgb;
+		gl_FragColor = vec4(color, 1.0);
+	};
 )"
-	);
+);
+	if (shader->getErrorMessage() == "")
+		graphics->filter(*shader.get());
 }
 
 void GLComponent::shutdown()
 {
+	videoTex.release();
 	shader.reset();
 	graphics.reset();
 }
@@ -49,8 +62,16 @@ void GLComponent::render()
 
 	glViewport(0, 0, roundToInt(desktopScale * getWidth()), roundToInt(desktopScale * getHeight()));
 
-	graphics->fill(0.0, 1.0, 0.0, 0.0);
-	graphics->stroke(1.0, 0.0, 0.0, 1.0);
+	ffVideoTex.next(videoTex);
+	OpenGLShaderProgram::Uniform *tmpPtr = shader->getUniform("texture");
+	if (tmpPtr != nullptr) tmpPtr->set((GLint)videoTex.getTextureID());
+
+	videoTex.bind();
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	graphics->fill(0.0, 0.0, 0.0, 1.0);
+	graphics->noStroke();
 	graphics->rect(-0.5, -0.5, 0.5, 0.5);
 }
 
