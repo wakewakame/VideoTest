@@ -136,6 +136,7 @@ void Shader::findAttributes(std::string src) {
 			if (count == 2) name = word_ite->str();
 			count++;
 		}
+		// shader always optimizes codes. (e.g. unused variables)
 		if (
 			(count == 3) && 
 			(openGLContextRef.extensions.glGetAttribLocation(
@@ -173,6 +174,7 @@ void Shader::findUniforms(std::string src) {
 			if (count == 2) name = word_ite->str();
 			count++;
 		}
+		// shader always optimizes codes. (e.g. unused variables)
 		if (
 			(count == 3) &&
 			(openGLContextRef.extensions.glGetUniformLocation(
