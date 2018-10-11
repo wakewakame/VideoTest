@@ -10,20 +10,20 @@
 
 #include "Shape.h"
 
-Shape::Shape(OpenGLContext &openGLContext) : openGLContext(openGLContext) {
+Shape::Shape(OpenGLContext &openGLContextRef) : openGLContextRef(openGLContextRef) {
 	// generate opengl buffer
 	vertexBuffer = 0;
 	indexBuffer = 0;
-	openGLContext.extensions.glGenBuffers(1, &vertexBuffer);
-	openGLContext.extensions.glGenBuffers(1, &indexBuffer);
+	openGLContextRef.extensions.glGenBuffers(1, &vertexBuffer);
+	openGLContextRef.extensions.glGenBuffers(1, &indexBuffer);
 	// new default shader
-	defaultShader.reset(new Shader(openGLContext));
+	defaultShader.reset(new Shader(openGLContextRef));
 }
 
 Shape::~Shape() {
 	// delete opengl buffer
-	openGLContext.extensions.glDeleteBuffers(1, &vertexBuffer);
-	openGLContext.extensions.glDeleteBuffers(1, &indexBuffer);
+	openGLContextRef.extensions.glDeleteBuffers(1, &vertexBuffer);
+	openGLContextRef.extensions.glDeleteBuffers(1, &indexBuffer);
 }
 
 // if you want to use Shape::index, you need set useIndex true.
@@ -45,15 +45,15 @@ void Shape::beginShape(VertexType vertexType, bool useIndex) {
 }
 
 void Shape::endShape() {
-	openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-	openGLContext.extensions.glBufferData(
+	openGLContextRef.extensions.glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	openGLContextRef.extensions.glBufferData(
 		GL_ARRAY_BUFFER,
 		vertices.size() * sizeof(Vertex),
 		vertices.data(),
 		GL_DYNAMIC_DRAW
 	);
-	openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-	openGLContext.extensions.glBufferData(
+	openGLContextRef.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	openGLContextRef.extensions.glBufferData(
 		GL_ELEMENT_ARRAY_BUFFER,
 		indices.size() * sizeof(GLuint),
 		indices.data(),
@@ -62,8 +62,8 @@ void Shape::endShape() {
 }
 
 void Shape::draw() {
-	openGLContext.extensions.glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-	openGLContext.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	openGLContextRef.extensions.glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+	openGLContextRef.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
 	attributesEnable();
 	glDrawElements(currentVertexType, (GLsizei)indices.size(), GL_UNSIGNED_INT, 0);
 	attributesDisable();
@@ -76,24 +76,24 @@ void Shape::attributesEnable() {
 	ptr = currentShader->getAttribute("position");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("position") == "vec4"))
 	{
-		openGLContext.extensions.glVertexAttribPointer(ptr->attributeID, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 0));
-		openGLContext.extensions.glEnableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glVertexAttribPointer(ptr->attributeID, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 0));
+		openGLContextRef.extensions.glEnableVertexAttribArray(ptr->attributeID);
 	}
 
 	// uv
 	ptr = currentShader->getAttribute("uv");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("uv") == "vec2"))
 	{
-		openGLContext.extensions.glVertexAttribPointer(ptr->attributeID, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 4));
-		openGLContext.extensions.glEnableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glVertexAttribPointer(ptr->attributeID, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 4));
+		openGLContextRef.extensions.glEnableVertexAttribArray(ptr->attributeID);
 	}
 
 	// color
 	ptr = currentShader->getAttribute("color");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("color") == "vec4"))
 	{
-		openGLContext.extensions.glVertexAttribPointer(ptr->attributeID, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 6));
-		openGLContext.extensions.glEnableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glVertexAttribPointer(ptr->attributeID, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (GLvoid*)(sizeof(GLfloat) * 6));
+		openGLContextRef.extensions.glEnableVertexAttribArray(ptr->attributeID);
 	}
 }
 
@@ -104,20 +104,20 @@ void Shape::attributesDisable() {
 	ptr = currentShader->getAttribute("position");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("position") == "vec4"))
 	{
-		openGLContext.extensions.glDisableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glDisableVertexAttribArray(ptr->attributeID);
 	}
 
 	// uv
 	ptr = currentShader->getAttribute("uv");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("uv") == "vec2"))
 	{
-		openGLContext.extensions.glDisableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glDisableVertexAttribArray(ptr->attributeID);
 	}
 
 	// color
 	ptr = currentShader->getAttribute("color");
 	if ((ptr != nullptr) && (currentShader->getAttributeType("color") == "vec4"))
 	{
-		openGLContext.extensions.glDisableVertexAttribArray(ptr->attributeID);
+		openGLContextRef.extensions.glDisableVertexAttribArray(ptr->attributeID);
 	}
 }

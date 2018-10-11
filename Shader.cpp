@@ -47,7 +47,7 @@ void main()
 };
 )";
 
-Shader::Shader(OpenGLContext &openGLContext) : openGLContext(openGLContext) {
+Shader::Shader(OpenGLContext &openGLContextRef) : openGLContextRef(openGLContextRef) {
 	loadDefaultShader();
 }
 
@@ -55,18 +55,19 @@ Shader::~Shader() {}
 
 void Shader::loadShader(std::string vertexShader, std::string fragmentShader) {
 	// compile
-	std::unique_ptr<OpenGLShaderProgram> newShader(new OpenGLShaderProgram(openGLContext));
+	std::unique_ptr<OpenGLShaderProgram> newShader(new OpenGLShaderProgram(openGLContextRef));
 	if (
 		newShader->addVertexShader(vertexShader) &&
 		newShader->addFragmentShader(fragmentShader) &&
 		newShader->link()
 	)
 	{
+		// reset shader
+		shader.reset(newShader.release());
 		// reset attributes and uniforms
 		findAttributes(vertexShader);
 		findUniforms(vertexShader + "\n" + fragmentShader);
-		// reset shader
-		shader.reset(newShader.release());
+		// reset error
 		errorMessage = "";
 	}
 	else
@@ -115,35 +116,35 @@ void Shader::findAttributes(std::string src) {
 	attributesType.clear();
 	attributes.clear();
 	// delete comments
-	const std::regex comments("/\\*[\\s\\S]*?\\*/|//.*");
+	const std::regex comments(R"(/\*[\s\S]*?\*/|//.*)");
 	src = std::regex_replace(src, comments, "");
 	// search all attributes
-	const std::regex target("attribute[^;]+;");
+	const std::regex target(R"(attribute[^;]+;)");
 	std::vector<std::string> dst;
-	std::sregex_iterator end, ite{ src.begin(), src.end(), target };
-	for (; ite != end; ++ite) {
-		dst.push_back(ite->str());
+	std::sregex_iterator comment_end, comment_ite{ src.begin(), src.end(), target };
+	for (; comment_ite != comment_end; ++comment_ite) {
+		dst.push_back(comment_ite->str());
 	}
 	// get type and name
-	const std::regex word("[\\w_]+");
+	const std::regex word(R"([\w_]+)");
 	for (std::string s : dst) {
-		std::sregex_iterator end, ite{ s.begin(), s.end(), word };
+		std::sregex_iterator word_end, word_ite{ s.begin(), s.end(), word };
 		std::string type, name;
 		uint16_t count = 0;
-		for (; ite != end; ++ite) {
-			if (count == 1) type = ite->str();
-			if (count == 2) name = ite->str();
+		for (; word_ite != word_end; ++word_ite) {
+			if (count == 1) type = word_ite->str();
+			if (count == 2) name = word_ite->str();
 			count++;
 		}
 		if (
-			count == 3 || 
-			openGLContext.extensions.glGetAttribLocation(
+			(count == 3) && 
+			(openGLContextRef.extensions.glGetAttribLocation(
 				shader->getProgramID(),
 				name.c_str()
-			) >= 0
+			) >= 0)
 		) {
 			attributesType[name] = type;
-			attributes[name].reset(new OpenGLShaderProgram::Attribute(*shader, name.c_str()));
+			attributes[name].reset(new OpenGLShaderProgram::Attribute(*shader.get(), name.c_str()));
 		}
 	}
 }
@@ -152,35 +153,35 @@ void Shader::findUniforms(std::string src) {
 	uniformsType.clear();
 	uniforms.clear();
 	// delete comments
-	const std::regex comments("/\\*[\\s\\S]*?\\*/|//.*");
-	src = std::regex_replace(src, comments, "");
+	const std::regex comment(R"(/\*[\s\S]*?\*/|//.*)");
+	src = std::regex_replace(src, comment, "");
 	// search all uniforms
-	const std::regex target("uniform[^;]+;");
+	const std::regex target(R"(uniform[^;]+;)");
 	std::vector<std::string> dst;
-	std::sregex_iterator end, ite{ src.begin(), src.end(), target };
-	for (; ite != end; ++ite) {
-		dst.push_back(ite->str());
+	std::sregex_iterator comment_end, comment_ite{ src.begin(), src.end(), target };
+	for (; comment_ite != comment_end; ++comment_ite) {
+		dst.push_back(comment_ite->str());
 	}
 	// get type and name
-	const std::regex word("[\\w_]+");
+	const std::regex word(R"([\w_]+)");
 	for (std::string s : dst) {
-		std::sregex_iterator end, ite{ s.begin(), s.end(), word };
+		std::sregex_iterator word_end, word_ite{ s.begin(), s.end(), word };
 		std::string type, name;
 		uint16_t count = 0;
-		for (; ite != end; ++ite) {
-			if (count == 1) type = ite->str();
-			if (count == 2) name = ite->str();
+		for (; word_ite != word_end; ++word_ite) {
+			if (count == 1) type = word_ite->str();
+			if (count == 2) name = word_ite->str();
 			count++;
 		}
 		if (
-			count == 3 ||
-			openGLContext.extensions.glGetUniformLocation(
+			(count == 3) &&
+			(openGLContextRef.extensions.glGetUniformLocation(
 				shader->getProgramID(),
 				name.c_str()
-			) >= 0
-			) {
+			) >= 0)
+		) {
 			uniformsType[name] = type;
-			uniforms[name].reset(new OpenGLShaderProgram::Uniform(*shader, name.c_str()));
+			uniforms[name].reset(new OpenGLShaderProgram::Uniform(*shader.get(), name.c_str()));
 		}
 	}
 }

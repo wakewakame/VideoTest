@@ -17,48 +17,54 @@
 
 class GLGraphics {
 private:
-	OpenGLContext &openGLContext;
-	std::unique_ptr<Shape> fillShape;
-	std::unique_ptr<Shape> strokeShape;
+	OpenGLContext &openGLContextRef;
+	std::unique_ptr<Shape> shape;
+	Shape::Color fillColor, strokeColor;
 	Shader *currentShader = nullptr;
 
 public:
 	GLGraphics(OpenGLContext &openGLContext);
 	virtual ~GLGraphics();
 
-	/*
 	inline void fill(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
-		fillShape->setColor(r, g, b, a);
+		fillColor.r = r;
+		fillColor.g = g;
+		fillColor.b = b;
+		fillColor.a = a;
 	}
 	inline void fill(GLfloat r, GLfloat g, GLfloat b) {
-		fillShape->setColor(r, g, b);
+		fill(r, g, b, 1.0);
 	}
 	inline void fill(GLfloat gray, GLfloat a) {
-		fillShape->setColor(gray, a);
+		fill(gray, gray, gray, a);
 	}
 	inline void fill(GLfloat gray) {
-		fillShape->setColor(gray);
+		fill(gray, gray, gray, 1.0);
 	}
 	inline void noFill() {
-		fillShape->setNoColor();
+		fill(0.0, 0.0, 0.0, 0.0);
 	}
 	inline void stroke(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
-		strokeShape->setColor(r, g, b, a);
+		fillColor.r = r;
+		fillColor.g = g;
+		fillColor.b = b;
+		fillColor.a = a;
 	}
 	inline void stroke(GLfloat r, GLfloat g, GLfloat b) {
-		strokeShape->setColor(r, g, b);
+		fill(r, g, b, 1.0);
 	}
 	inline void stroke(GLfloat gray, GLfloat a) {
-		strokeShape->setColor(gray, a);
+		fill(gray, gray, gray, a);
 	}
 	inline void stroke(GLfloat gray) {
-		strokeShape->setColor(gray);
+		fill(gray, gray, gray, 1.0);
 	}
 	inline void noStroke() {
-		strokeShape->setNoColor();
+		fill(0.0, 0.0, 0.0, 0.0);
 	}
-	void filter(Shader &shader) {
+	inline void filter(Shader &shader) {
 		currentShader = &shader;
 	}
-	*/
+	void line(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
+	void rect(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
 };

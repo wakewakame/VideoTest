@@ -11,6 +11,7 @@
 #include "../JuceLibraryCode/JuceHeader.h"
 
 #include "FFmpegWrapper.h"
+#include "GLComponent.h"
 
 //==============================================================================
 /*
@@ -19,6 +20,9 @@
 */
 class MainComponent   : public Component
 {
+private:
+	GLComponent gl;
+
 public:
     //==============================================================================
     MainComponent();

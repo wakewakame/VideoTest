@@ -10,6 +10,10 @@
 
 #pragma once
 
+/// debug
+#include <windows.h>
+/// debug
+
 #include <map>
 #include <string>
 #include <regex>
@@ -18,7 +22,7 @@
 class Shader {
 private:
 	// current OpenGLContext
-	OpenGLContext &openGLContext;
+	OpenGLContext &openGLContextRef;
 	// program
 	std::unique_ptr<OpenGLShaderProgram> shader;
 	// default shader source codes

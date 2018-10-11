@@ -32,9 +32,12 @@ public:
 		QUAD_STRIP = GL_QUAD_STRIP,
 		POLYGON = GL_POLYGON
 	};
+	struct Color {
+		GLfloat r = 0.0, g = 0.0, b = 0.0, a = 1.0;
+	};
 private:
 	// current OpenGLContext
-	OpenGLContext &openGLContext;
+	OpenGLContext &openGLContextRef;
 	// opengl buffer
 	GLuint vertexBuffer, indexBuffer;
 	// vertices
@@ -43,9 +46,7 @@ private:
 	VertexType currentVertexType;
 	bool useIndexFlag;
 	// current color
-	struct Color {
-		GLfloat r, g, b, a;
-	} color;
+	Color color;
 	// current shader
 	std::unique_ptr<Shader> defaultShader;
 	Shader *currentShader;
