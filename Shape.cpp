@@ -62,6 +62,7 @@ void Shape::endShape() {
 }
 
 void Shape::draw() {
+	if(currentShader != nullptr) currentShader->use();
 	openGLContextRef.extensions.glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 	openGLContextRef.extensions.glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
 	attributesEnable();

@@ -22,12 +22,19 @@ GLComponent::~GLComponent()
 
 void GLComponent::initialise()
 {
-	shape.reset(new Shape(openGLContext));
+	graphics.reset(new GLGraphics(openGLContext));
+	shader.reset(new Shader(openGLContext));
+	shader->loadShader(
+R"(
+
+)"
+	);
 }
 
 void GLComponent::shutdown()
 {
-	shape.reset();
+	shader.reset();
+	graphics.reset();
 }
 
 void GLComponent::render()
@@ -42,7 +49,9 @@ void GLComponent::render()
 
 	glViewport(0, 0, roundToInt(desktopScale * getWidth()), roundToInt(desktopScale * getHeight()));
 
-
+	graphics->fill(0.0, 0.0, 0.0, 0.5);
+	graphics->stroke(0.0, 0.0, 0.0, 0.5);
+	graphics->rect(-0.5, -0.5, 0.5, 0.5);
 }
 
 void GLComponent::paint(Graphics& g)

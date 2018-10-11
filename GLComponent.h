@@ -11,12 +11,13 @@
 #pragma once
 
 #include "../JuceLibraryCode/JuceHeader.h"
-#include "Shape.h"
+#include "GLGraphics.h"
 
 class GLComponent : public OpenGLAppComponent
 {
 protected:
-	std::unique_ptr<Shape> shape;
+	std::unique_ptr<GLGraphics> graphics;
+	std::unique_ptr<Shader> shader;
 
 public:
 	GLComponent();
