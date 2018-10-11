@@ -13,7 +13,7 @@
 #include <map>
 #include <string>
 #include <regex>
-#include "GLGraphics.h"
+#include "../JuceLibraryCode/JuceHeader.h"
 
 class Shader {
 private:

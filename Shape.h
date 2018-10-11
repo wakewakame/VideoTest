@@ -10,10 +10,8 @@
 
 #pragma once
 
-#include "GLGraphics.h"
+#include "../JuceLibraryCode/JuceHeader.h"
 #include "Shader.h"
-
-class Shader;
 
 class Shape {
 public:
