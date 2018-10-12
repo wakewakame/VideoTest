@@ -11,6 +11,7 @@
 #pragma once
 
 #include "FFmpegWrapper.h"
+#include "GLComponent.h"
 
 namespace FF {
 	class VideoTexture {
@@ -36,6 +37,49 @@ namespace FF {
 				video.getFrameWidth(),
 				video.getFrameHeight()
 			);
+		}
+	};
+
+	class VideoGraphics : public GLGraphics {
+	private:
+		std::unique_ptr<Shader> shader;
+		OpenGLTexture videoTex;
+		FF::VideoTexture ffVideoTex;
+
+	public:
+		void setup() override {
+			ffVideoTex.open("G:\\Žv‚¢o\\Dropbox\\Dropbox\\C++\\ffmpeg_test\\ffmpeg_test\\sync-test-doubleNTSC30min.mp4");
+			shader.reset(new Shader(*openGLContextPtr));
+			shader->loadShader(
+				R"(
+	varying vec2 vUv;
+	varying vec4 vColor;
+
+	uniform sampler2D texture;
+
+	void main()
+	{
+		vec3 color = texture2D(texture, vUv).rgb;
+		gl_FragColor = vec4(color, 1.0);
+	};
+)"
+);
+			if (shader->getErrorMessage() == "")
+				setShader(*shader.get());
+		}
+
+		void draw() {
+			ffVideoTex.next(videoTex);
+			OpenGLShaderProgram::Uniform *tmpPtr = shader->getUniform("texture");
+			if (tmpPtr != nullptr) tmpPtr->set((GLint)videoTex.getTextureID());
+
+			videoTex.bind();
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+			fill(0.0, 0.0, 0.0, 1.0);
+			noStroke();
+			rect(-0.5, -0.5, 0.5, 0.5);
 		}
 	};
 }

@@ -12,34 +12,65 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 #include "GLGraphics.h"
-#include "VideoTexture.h"
 
-///debug
-#include <Windows.h>
-///debug
-
+template<class G>
 class GLComponent : public OpenGLAppComponent
 {
+static_assert(std::is_base_of<GLGraphics, G>::value, "type parameter of this class must derive from GLGraphics");
+
 protected:
 	std::unique_ptr<GLGraphics> graphics;
-	std::unique_ptr<Shader> shader;
-	OpenGLTexture videoTex;
-	FF::VideoTexture ffVideoTex;
 
 public:
-	GLComponent();
+	GLComponent() {
+		setSize(640, 480);
+	}
 
-	~GLComponent();
+	virtual ~GLComponent() {
+		shutdownOpenGL();
+	}
 
-	void initialise() override;
+	inline G *getGraphics() { return (G*)graphics.get(); }
 
-	void shutdown() override;
+	void initialise() override {
+		graphics.reset(new G());
+		graphics->initialise(openGLContext);
+		graphics->setup();
+	}
 
-	void render() override;
+	void shutdown() override {
+		graphics.reset();
+	}
 
-	void paint(Graphics& g) override;
+	void render() override {
+		assert(OpenGLHelpers::isContextActive());
 
-	void resized() override;
+		auto desktopScale = (float)openGLContext.getRenderingScale();
+
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		glViewport(0, 0, roundToInt(desktopScale * getWidth()), roundToInt(desktopScale * getHeight()));
+
+		graphics->draw();
+	}
+
+	void paint(Graphics& g) override {
+		// You can add your component specific drawing code here!
+		// This will draw over the top of the openGL background.
+
+		g.setColour(getLookAndFeel().findColour(Label::textColourId));
+		g.setFont(20);
+		g.drawText("OpenGL Example", 25, 20, 300, 30, Justification::left);
+		g.drawLine(20, 20, 170, 20);
+		g.drawLine(20, 50, 170, 50);
+	}
+
+	void resized() override {
+		// This is called when this component is resized.
+		// If you add any child components, this is where you should
+		// update their positions.
+	}
 
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GLComponent)
 };

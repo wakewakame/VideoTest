@@ -10,7 +10,7 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 
-#include "GLComponent.h"
+#include "VideoTexture.h"
 
 //==============================================================================
 /*
@@ -20,7 +20,7 @@
 class MainComponent   : public Component
 {
 private:
-	GLComponent gl;
+	GLComponent<FF::VideoGraphics> gl;
 
 public:
     //==============================================================================

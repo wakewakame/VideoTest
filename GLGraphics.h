@@ -16,15 +16,22 @@
 #include "Shape.h"
 
 class GLGraphics {
+protected:
+	OpenGLContext *openGLContextPtr;
+
 private:
-	OpenGLContext &openGLContextRef;
 	std::unique_ptr<Shape> shape;
 	Shape::Color fillColor, strokeColor;
 	Shader *currentShader = nullptr;
 
 public:
-	GLGraphics(OpenGLContext &openGLContext);
+	GLGraphics();
 	virtual ~GLGraphics();
+
+	void initialise(OpenGLContext &openGLContext);
+
+	virtual void setup() = 0;
+	virtual void draw() = 0;
 
 	inline void fill(GLfloat r, GLfloat g, GLfloat b, GLfloat a) {
 		fillColor.r = r;
@@ -62,8 +69,11 @@ public:
 	inline void noStroke() {
 		stroke(0.0, 0.0, 0.0, 0.0);
 	}
-	inline void filter(Shader &shader) {
+	inline void setShader(Shader &shader) {
 		currentShader = &shader;
+	}
+	inline void setNoShader(Shader &shader) {
+		currentShader = nullptr;
 	}
 	void line(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
 	void rect(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);
