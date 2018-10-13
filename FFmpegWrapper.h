@@ -89,7 +89,10 @@ namespace FF {
 		int64_t seek_pos = -1;
 
 		void close() {
-			isOpen = false;
+			if (isOpen) {
+				isOpen = false;
+				decode.join();
+			}
 
 			if (nullptr != pFormatContext.get()) {
 				AVFormatContext *tmpPFormatContext = pFormatContext.release();
@@ -246,7 +249,6 @@ namespace FF {
 			decode = std::thread([&]() {
 				while (next() >= 0);
 			});
-			decode.detach();
 		}
 
 		AVFrame *front() {
