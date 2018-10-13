@@ -31,13 +31,13 @@ namespace FF {
 		}
 		void seek(int64_t time) { video.seek(time); }
 		void next(OpenGLTexture &texture) {
-			if ((uint8_t*)nullptr != video.front()) {
+			uint8_t *frame = video.nextFrame();
+			if ((uint8_t*)nullptr != frame) {
 				texture.loadARGB(
-					(PixelARGB*)video.front(),
+					(PixelARGB*)frame,
 					video.getFrameWidth(),
 					video.getFrameHeight()
 				);
-				video.pop();
 			}
 		}
 	};

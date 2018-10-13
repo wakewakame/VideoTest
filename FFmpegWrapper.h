@@ -16,6 +16,7 @@
 #include <memory>
 #include <queue>
 #include <thread>
+#include <mutex>
 #include <exception>
 #include <cassert>
 #include <type_traits>
@@ -47,7 +48,7 @@ extern "C" {
 
 namespace FF {
 	class FFmpeg {
-	protected:
+	public:
 		struct deletorAVFormatContext {
 			void operator()(AVFormatContext *ptr) const {
 				avformat_free_context(ptr);
@@ -75,11 +76,13 @@ namespace FF {
 		using spAVFrame = std::unique_ptr<AVFrame, deletorAVFrame>;
 		using spAVPacket = std::unique_ptr<AVPacket, deletorAVPacket>;
 
+	protected:
 		spAVFormatContext pFormatContext;
 		spAVCodecContext pCodecContext;
 		spAVFrame pFrame;
 		spAVPacket pPacket;
 		std::queue<spAVFrame> frameQueue;
+		std::mutex frameQueueMutex;
 		std::thread decode;
 
 		bool isOpen = false;
@@ -101,13 +104,14 @@ namespace FF {
 			}
 		}
 
-		int next() {
+		int decodeStream() {
 			if (!isOpen)
 				return -1;
 
 			if (frameQueue.size() >= frameQueueMaxSize) return 0;
 
-			if (seek_pos != -1) {
+			if (seek_pos >= 0) {
+				std::lock_guard<std::mutex> lock(frameQueueMutex);
 				if (av_seek_frame(pFormatContext.get(), -1, seek_pos, 0) < 0)
 					return -1;
 				avcodec_flush_buffers(pCodecContext.get());
@@ -116,7 +120,7 @@ namespace FF {
 
 			while (av_read_frame(pFormatContext.get(), pPacket.get()) >= 0) {
 				if (pPacket->stream_index == streamIndex) {
-					response = decode_packet(pPacket, pCodecContext, pFrame);
+					response = decodePacket();
 					if (response >= 0) {
 						av_packet_unref(pPacket.get());
 						return 0;
@@ -130,7 +134,7 @@ namespace FF {
 			return -1;
 		}
 
-		int decode_packet(spAVPacket &pPacket, spAVCodecContext &pCodecContext, spAVFrame &pFrame)
+		int decodePacket()
 		{
 			int response = avcodec_send_packet(pCodecContext.get(), pPacket.get());
 			if (response < 0) {
@@ -147,6 +151,7 @@ namespace FF {
 					return response;
 				}
 				if (response >= 0) {
+					std::lock_guard<std::mutex> lock(frameQueueMutex);
 					AVFrame *tmpFrame = av_frame_alloc();
 					av_frame_ref(tmpFrame, pFrame.get());
 					frameQueue.push(spAVFrame(tmpFrame));
@@ -247,20 +252,18 @@ namespace FF {
 			isOpen = true;
 
 			decode = std::thread([&]() {
-				while (next() >= 0);
+				while (decodeStream() >= 0);
 			});
 		}
 
-		AVFrame *front() {
-			if (frameQueue.size() > 0)
-				return frameQueue.front().get();
-			else
-				return (AVFrame*)nullptr;
-		}
-
-		void pop() {
-			if (frameQueue.size() > 0)
+		spAVFrame nextFrame() {
+			spAVFrame result{ nullptr };
+			if (0 < frameQueue.size()) {
+				std::lock_guard<std::mutex> lock(frameQueueMutex);
+				result = std::move(frameQueue.front());
 				frameQueue.pop();
+			}
+			return result;
 		}
 
 		inline void seek(int64_t time) { seek_pos = time; }
@@ -349,10 +352,10 @@ namespace FF {
 
 		}
 
-		uint8_t *front() {
-			AVFrame *pFrame = this->FFmpeg::front();
-			if (pFrame == nullptr) return nullptr;
-			convert(pFrame);
+		uint8_t *nextFrame() {
+			spAVFrame tmpFrame = this->FFmpeg::nextFrame();
+			if (tmpFrame.get() == nullptr) return nullptr;
+			convert(tmpFrame.get());
 			return frameData.get();
 		}
 
@@ -462,10 +465,10 @@ namespace FF {
 
 		}
 
-		float_t *front() {
-			AVFrame *pFrame = this->FFmpeg::front();
-			if (pFrame == nullptr) return nullptr;
-			convert(pFrame);
+		float_t *nextFrame() {
+			spAVFrame tmpFrame = this->FFmpeg::nextFrame();
+			if (tmpFrame.get() == nullptr) return nullptr;
+			convert(tmpFrame.get());
 			return frameData.get();
 		}
 
