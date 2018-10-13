@@ -72,7 +72,7 @@ public:
 	inline void setShader(Shader &shader) {
 		currentShader = &shader;
 	}
-	inline void setNoShader(Shader &shader) {
+	inline void setNoShader() {
 		currentShader = nullptr;
 	}
 	void line(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2);

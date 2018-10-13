@@ -14,9 +14,17 @@
 #include <iostream>
 #include <functional>
 #include <memory>
+#include <queue>
+#include <thread>
 #include <exception>
 #include <cassert>
 #include <type_traits>
+
+///debug
+#include <Windows.h>
+#include <sstream>
+#include <string>
+///debug
 
 // FFmpeg library
 extern "C" {
@@ -40,16 +48,42 @@ extern "C" {
 namespace FF {
 	class FFmpeg {
 	protected:
-		using spAVFormatContext = std::unique_ptr<AVFormatContext, std::function<void(AVFormatContext*)>>;
-		using spAVCodecContext = std::unique_ptr<AVCodecContext, std::function<void(AVCodecContext*)>>;
-		using spAVFrame = std::unique_ptr<AVFrame, std::function<void(AVFrame*)>>;
-		using spAVPacket = std::unique_ptr<AVPacket, std::function<void(AVPacket*)>>;
+		struct deletorAVFormatContext {
+			void operator()(AVFormatContext *ptr) const {
+				avformat_free_context(ptr);
+			}
+		};
+		struct deletorAVCodecContext {
+			void operator()(AVCodecContext *ptr) const {
+				avcodec_free_context(&ptr);
+			}
+		};
+		struct deletorAVFrame {
+			void operator()(AVFrame *ptr) const {
+				av_frame_free(&ptr);
+				assert(nullptr == ptr);
+			}
+		};
+		struct deletorAVPacket {
+			void operator()(AVPacket *ptr) const {
+				av_packet_free(&ptr);
+			}
+		};
+
+		using spAVFormatContext = std::unique_ptr<AVFormatContext, deletorAVFormatContext>;
+		using spAVCodecContext = std::unique_ptr<AVCodecContext, deletorAVCodecContext>;
+		using spAVFrame = std::unique_ptr<AVFrame, deletorAVFrame>;
+		using spAVPacket = std::unique_ptr<AVPacket, deletorAVPacket>;
 
 		spAVFormatContext pFormatContext;
 		spAVCodecContext pCodecContext;
 		spAVFrame pFrame;
 		spAVPacket pPacket;
+		std::queue<spAVFrame> frameQueue;
+		std::thread decode;
+
 		bool isOpen = false;
+		size_t frameQueueMaxSize = 5;
 		int streamIndex;
 		int response;
 		int64_t seek_pos = -1;
@@ -62,6 +96,62 @@ namespace FF {
 				avformat_close_input(&tmpPFormatContext);
 				pFormatContext.reset(tmpPFormatContext);
 			}
+		}
+
+		int next() {
+			if (!isOpen)
+				return -1;
+
+			if (frameQueue.size() >= frameQueueMaxSize) return 0;
+
+			if (seek_pos != -1) {
+				if (av_seek_frame(pFormatContext.get(), -1, seek_pos, 0) < 0)
+					return -1;
+				avcodec_flush_buffers(pCodecContext.get());
+				seek_pos = -1;
+			}
+
+			while (av_read_frame(pFormatContext.get(), pPacket.get()) >= 0) {
+				if (pPacket->stream_index == streamIndex) {
+					response = decode_packet(pPacket, pCodecContext, pFrame);
+					if (response >= 0) {
+						av_packet_unref(pPacket.get());
+						return 0;
+					}
+					else {
+						return -1;
+					}
+				}
+			}
+
+			return -1;
+		}
+
+		int decode_packet(spAVPacket &pPacket, spAVCodecContext &pCodecContext, spAVFrame &pFrame)
+		{
+			int response = avcodec_send_packet(pCodecContext.get(), pPacket.get());
+			if (response < 0) {
+				return response;
+			}
+
+			while (response >= 0)
+			{
+				response = avcodec_receive_frame(pCodecContext.get(), pFrame.get());
+				if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
+					break;
+				}
+				else if (response < 0) {
+					return response;
+				}
+				if (response >= 0) {
+					AVFrame *tmpFrame = av_frame_alloc();
+					av_frame_ref(tmpFrame, pFrame.get());
+					frameQueue.push(spAVFrame(tmpFrame));
+					av_frame_unref(pFrame.get());
+				}
+			}
+
+			return 0;
 		}
 
 	public:
@@ -94,30 +184,8 @@ namespace FF {
 		};
 
 		virtual AVMediaType getAVMediaType() = 0;
-		virtual int processFrame(AVFrame *frame) = 0;
 
-		FFmpeg()
-		{
-			pFormatContext = spAVFormatContext(
-				nullptr,
-				[](AVFormatContext *ptr) { avformat_free_context(ptr); }
-			);
-			pCodecContext = spAVCodecContext(
-				nullptr,
-				[](AVCodecContext *ptr) { avcodec_free_context(&ptr); }
-			);
-			pFrame = spAVFrame(
-				nullptr,
-				[](AVFrame *ptr) {
-				av_frame_free(&ptr);
-				assert(nullptr == ptr);
-			}
-			);
-			pPacket = spAVPacket(
-				av_packet_alloc(),
-				[](AVPacket *ptr) { av_packet_free(&ptr); }
-			);
-		}
+		FFmpeg() {}
 
 		virtual ~FFmpeg() {
 			close();
@@ -174,62 +242,26 @@ namespace FF {
 			response = 0;
 
 			isOpen = true;
+
+			decode = std::thread([&]() {
+				while (next() >= 0);
+			});
+			decode.detach();
+		}
+
+		AVFrame *front() {
+			if (frameQueue.size() > 0)
+				return frameQueue.front().get();
+			else
+				return (AVFrame*)nullptr;
+		}
+
+		void pop() {
+			if (frameQueue.size() > 0)
+				frameQueue.pop();
 		}
 
 		inline void seek(int64_t time) { seek_pos = time; }
-
-		int next() {
-			if (!isOpen)
-				return -1;
-
-			if (seek_pos != -1) {
-				if (av_seek_frame(pFormatContext.get(), -1, seek_pos, 0) < 0)
-					return -1;
-				avcodec_flush_buffers(pCodecContext.get());
-				seek_pos = -1;
-			}
-
-			while (av_read_frame(pFormatContext.get(), pPacket.get()) >= 0) {
-				if (pPacket->stream_index == streamIndex) {
-					response = decode_packet(pPacket, pCodecContext, pFrame);
-					if (response >= 0) {
-						av_packet_unref(pPacket.get());
-						return 0;
-					}
-					else {
-						return -1;
-					}
-				}
-			}
-
-			return -1;
-		}
-
-		int decode_packet(spAVPacket &pPacket, spAVCodecContext &pCodecContext, spAVFrame &pFrame)
-		{
-			int response = avcodec_send_packet(pCodecContext.get(), pPacket.get());
-			if (response < 0) {
-				return response;
-			}
-
-			while (response >= 0)
-			{
-				response = avcodec_receive_frame(pCodecContext.get(), pFrame.get());
-				if (response == AVERROR(EAGAIN) || response == AVERROR_EOF) {
-					break;
-				}
-				else if (response < 0) {
-					return response;
-				}
-				if (response >= 0) {
-					int res = processFrame(pFrame.get());
-					av_frame_unref(pFrame.get());
-					if (res < 0) return -1;
-				}
-			}
-
-			return 0;
-		}
 	};
 
 	class Video : public FFmpeg {
@@ -248,7 +280,7 @@ namespace FF {
 
 		AVMediaType getAVMediaType() { return AVMediaType::AVMEDIA_TYPE_VIDEO; }
 
-		int processFrame(AVFrame *pFrame) override
+		int convert(AVFrame *pFrame)
 		{
 
 			if (pixelFormat == (AVPixelFormat)PixelFormat::NONE) return -1;
@@ -315,6 +347,13 @@ namespace FF {
 
 		}
 
+		uint8_t *front() {
+			AVFrame *pFrame = this->FFmpeg::front();
+			if (pFrame == nullptr) return nullptr;
+			convert(pFrame);
+			return frameData.get();
+		}
+
 		int setPixelFormat(PixelFormat pixelFormat) {
 			this->pixelFormat = (AVPixelFormat)pixelFormat;
 			switch (pixelFormat) {
@@ -338,11 +377,12 @@ namespace FF {
 				break;
 			}
 
+			changeFlag = true;
+
 			return 0;
 		}
 
 		inline PixelFormat getPixelFormat() const { return (PixelFormat)pixelFormat; }
-		inline uint8_t* getFrameData() const { return frameData.get(); }
 		inline uint8_t getFrameChannelSize() const { return frameChannelSize; }
 		inline uint32_t getFrameWidth() const { return frameWidth; }
 		inline uint32_t getFrameHeight() const { return frameHeight; }
@@ -364,7 +404,7 @@ namespace FF {
 
 		AVMediaType getAVMediaType() { return AVMediaType::AVMEDIA_TYPE_AUDIO; }
 
-		int processFrame(AVFrame *pFrame) override
+		int convert(AVFrame *pFrame)
 		{
 			if (
 				frameLength != pFrame->nb_samples ||
@@ -420,12 +460,18 @@ namespace FF {
 
 		}
 
+		float_t *front() {
+			AVFrame *pFrame = this->FFmpeg::front();
+			if (pFrame == nullptr) return nullptr;
+			convert(pFrame);
+			return frameData.get();
+		}
+
 		inline void setSampleRate(double sampleRate) {
 			this->sampleRate = sampleRate;
 			changeFlag = true;
 		}
 
-		inline float_t* getFrameData() const { return frameData.get(); }
 		inline uint32_t getFrameLength() const { return frameLength; }
 		inline uint8_t getFrameChannelSize() const { return frameChannelSize; }
 		inline double_t getSampleRate() const { return sampleRate; }

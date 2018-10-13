@@ -31,12 +31,14 @@ namespace FF {
 		}
 		void seek(int64_t time) { video.seek(time); }
 		void next(OpenGLTexture &texture) {
-			video.next();
-			texture.loadARGB(
-				(PixelARGB*)video.getFrameData(),
-				video.getFrameWidth(),
-				video.getFrameHeight()
-			);
+			if ((uint8_t*)nullptr != video.front()) {
+				texture.loadARGB(
+					(PixelARGB*)video.front(),
+					video.getFrameWidth(),
+					video.getFrameHeight()
+				);
+				video.pop();
+			}
 		}
 	};
 
@@ -64,11 +66,16 @@ namespace FF {
 	};
 )"
 );
-			if (shader->getErrorMessage() == "")
-				setShader(*shader.get());
 		}
 
 		void draw() {
+			setNoShader();
+			fill(1.0, 1.0, 1.0, 1.0);
+			rect(-1.0, -1.0, 1.0, 1.0);
+
+			if (shader->getErrorMessage() == "")
+				setShader(*shader.get());
+
 			ffVideoTex.next(videoTex);
 			OpenGLShaderProgram::Uniform *tmpPtr = shader->getUniform("texture");
 			if (tmpPtr != nullptr) tmpPtr->set((GLint)videoTex.getTextureID());
