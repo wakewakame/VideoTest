@@ -23,7 +23,7 @@ namespace FF {
 
 	public:
 		VideoTexture() {
-			video.setPixelFormat(video.BGRA32);
+			video.setPixelFormat(AVPixelFormat::AV_PIX_FMT_BGRA);
 		}
 		virtual ~VideoTexture() {}
 		void open(std::string path) {

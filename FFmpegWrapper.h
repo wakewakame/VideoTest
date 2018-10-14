@@ -276,38 +276,38 @@ namespace FF {
 
 	class Video : public FFmpeg {
 	private:
-		using spSwsContext = std::unique_ptr<SwsContext, std::function<void(SwsContext*)>>;
+		struct deletorSwsContext {
+			void operator()(SwsContext *ptr) const {
+				sws_freeContext(ptr);
+			}
+		};
 
+		using spSwsContext = std::unique_ptr<SwsContext, deletorSwsContext>;
+
+		spAVFrame convertedFrame;
 		spSwsContext pSWScaleContext;
-
-		AVPixelFormat pixelFormat;
-		std::unique_ptr<uint8_t[]> frameData;
-		int32_t frameChannelSize;
-		int32_t frameWidth;
-		int32_t frameHeight;
 
 		bool changeFlag;
 
-		AVMediaType getAVMediaType() { return AVMediaType::AVMEDIA_TYPE_VIDEO; }
+		AVMediaType getAVMediaType() override { return AVMediaType::AVMEDIA_TYPE_VIDEO; }
 
 		int convert(AVFrame *frame)
 		{
-
-			if (pixelFormat == (AVPixelFormat)PixelFormat::NONE) return -1;
-
 			if (
-				frameWidth != frame->width ||
-				frameHeight != frame->height ||
-				changeFlag
+				changeFlag || (!pSWScaleContext) ||
+				convertedFrame->width != frame->width ||
+				convertedFrame->height != frame->height
 				) {
-				frameWidth = frame->width;
-				frameHeight = frame->height;
-				frameData.reset(new uint8_t[frameWidth * frameHeight * frameChannelSize]);
+				av_frame_copy_props(convertedFrame.get(), frame);
+				convertedFrame->width = frame->width;
+				convertedFrame->height = frame->height;
+
+				if (av_frame_get_buffer(convertedFrame.get(), 0) != 0) return -1;
 
 				pSWScaleContext.reset(
 					sws_getContext(
 						frame->width, frame->height, (AVPixelFormat)(frame->format),
-						frame->width, frame->height, pixelFormat,
+						convertedFrame->width, convertedFrame->height, (AVPixelFormat)(convertedFrame->format),
 						0, 0, 0, 0
 					)
 				);
@@ -315,12 +315,10 @@ namespace FF {
 				changeFlag = false;
 			}
 
-			uint8_t* inData[1] = { frameData.get() };
-			int inStride[1] = { frameWidth * frameChannelSize };
 			int ret = sws_scale(
 				pSWScaleContext.get(),
 				frame->data, frame->linesize, 0, frame->height,
-				inData, inStride
+				convertedFrame->data, convertedFrame->linesize
 			);
 			if (ret < 0) return -1;
 
@@ -328,29 +326,11 @@ namespace FF {
 		}
 
 	public:
-		enum PixelFormat {
-			NONE = AV_PIX_FMT_NONE,
-			RGB24 = AV_PIX_FMT_RGB24,
-			BGR24 = AV_PIX_FMT_BGR24,
-			ARGB32 = AV_PIX_FMT_ARGB,
-			ABGR32 = AV_PIX_FMT_ABGR,
-			RGBA32 = AV_PIX_FMT_RGBA,
-			BGRA32 = AV_PIX_FMT_BGRA
-		};
-
-		Video() :
-			pixelFormat(AV_PIX_FMT_RGB24),
-			frameChannelSize(0),
-			frameWidth(0),
-			frameHeight(0),
-			changeFlag(true)
+		Video()
 		{
-			pSWScaleContext = spSwsContext(
-				nullptr,
-				[](SwsContext *ptr) {
-				sws_freeContext(ptr);
-			}
-			);
+			convertedFrame.reset(av_frame_alloc());
+			convertedFrame->format = AVPixelFormat::AV_PIX_FMT_RGB24;
+			changeFlag = true;
 		}
 
 		virtual ~Video() {
@@ -360,55 +340,33 @@ namespace FF {
 		uint8_t *nextFrame() {
 			spAVFrame tmpFrame = this->FFmpeg::nextFrame();
 			if (tmpFrame.get() == nullptr) return nullptr;
-			convert(tmpFrame.get());
-			return frameData.get();
+			if (convert(tmpFrame.get()) < 0) return nullptr;
+			return convertedFrame->data[0];
 		}
 
-		int setPixelFormat(PixelFormat format) {
-			pixelFormat = (AVPixelFormat)format;
-			switch (pixelFormat) {
-			case PixelFormat::NONE:
-				frameChannelSize = 0;
-				break;
-			case PixelFormat::RGB24:
-			case PixelFormat::BGR24:
-				frameChannelSize = 3;
-				break;
-			case PixelFormat::ARGB32:
-			case PixelFormat::ABGR32:
-			case PixelFormat::RGBA32:
-			case PixelFormat::BGRA32:
-				frameChannelSize = 4;
-				break;
-			default:
-				pixelFormat = (AVPixelFormat)PixelFormat::NONE;
-				frameChannelSize = 0;
-				return -1;
-				break;
-			}
-
+		void setPixelFormat(AVPixelFormat pixelFormat) {
+			convertedFrame->format = (AVPixelFormat)pixelFormat;
 			changeFlag = true;
-
-			return 0;
 		}
 
-		inline PixelFormat getPixelFormat() const { return (PixelFormat)pixelFormat; }
-		inline int32_t getFrameChannelSize() const { return frameChannelSize; }
-		inline int32_t getFrameWidth() const { return frameWidth; }
-		inline int32_t getFrameHeight() const { return frameHeight; }
+		inline AVPixelFormat getPixelFormat() const { return (AVPixelFormat)convertedFrame->format; }
+		inline int32_t getFrameWidth() const { return convertedFrame->width; }
+		inline int32_t getFrameHeight() const { return convertedFrame->height; }
 	};
 
 
 	class Audio : public FFmpeg {
 	private:
-		using spSwrContext = std::unique_ptr<SwrContext, std::function<void(SwrContext*)>>;
+		struct deletorSwrContext {
+			void operator()(SwrContext *ptr) const {
+				swr_free(&ptr);
+			}
+		};
 
+		using spSwrContext = std::unique_ptr<SwrContext, deletorSwrContext>;
+
+		spAVFrame convertedFrame;
 		spSwrContext pSwrContext;
-
-		std::unique_ptr<float_t[]> frameData;
-		int32_t frameLength;
-		int32_t frameChannelSize;
-		int32_t sampleRate;
 
 		bool changeFlag;
 
@@ -417,73 +375,66 @@ namespace FF {
 		int convert(AVFrame *frame)
 		{
 			if (
-				(int)frameLength != frame->nb_samples ||
-				frameChannelSize != frame->channels ||
-				changeFlag
+				changeFlag || (!pSwrContext) ||
+				convertedFrame->nb_samples != frame->nb_samples ||
+				convertedFrame->channel_layout != frame->channel_layout
 				) {
-				frameLength = frame->nb_samples;
-				frameChannelSize = frame->channels;
-				frameData.reset(new float_t[frameLength * frameChannelSize]);
+				av_frame_copy_props(convertedFrame.get(), frame);
+				convertedFrame->nb_samples = frame->nb_samples;
+				convertedFrame->channel_layout = frame->channel_layout;
+
+				if (av_frame_get_buffer(convertedFrame.get(), 0) != 0) return -1;
 
 				pSwrContext.reset(swr_alloc());
 				if (!pSwrContext) return -1;
 				av_opt_set_int(pSwrContext.get(), "in_channel_layout", frame->channel_layout, 0);
-				av_opt_set_int(pSwrContext.get(), "out_channel_layout", frame->channel_layout, 0);
+				av_opt_set_int(pSwrContext.get(), "out_channel_layout", convertedFrame->channel_layout, 0);
 				av_opt_set_int(pSwrContext.get(), "in_sample_rate", frame->sample_rate, 0);
-				av_opt_set_int(pSwrContext.get(), "out_sample_rate", sampleRate, 0);
+				av_opt_set_int(pSwrContext.get(), "out_sample_rate", convertedFrame->sample_rate, 0);
 				av_opt_set_sample_fmt(pSwrContext.get(), "in_sample_fmt", (AVSampleFormat)frame->format, 0);
-				av_opt_set_sample_fmt(pSwrContext.get(), "out_sample_fmt", AV_SAMPLE_FMT_FLT, 0);
+				av_opt_set_sample_fmt(pSwrContext.get(), "out_sample_fmt", (AVSampleFormat)convertedFrame->format, 0);
 				int ret = swr_init(pSwrContext.get());
 				if (ret < 0) return -1;
 
 				changeFlag = false;
 			}
 
-			float_t *tmpFrameData = frameData.release();
 			int ret = swr_convert(
 				pSwrContext.get(),
-				(uint8_t**)&tmpFrameData, frame->nb_samples,
+				(uint8_t**)convertedFrame->extended_data, convertedFrame->nb_samples,
 				(const uint8_t**)frame->extended_data, frame->nb_samples
 			);
 			if (ret < 0) return -1;
-			frameData.reset(tmpFrameData);
 
 			return 0;
 		}
 
 	public:
-		Audio() :
-			frameChannelSize(0),
-			frameLength(0),
-			sampleRate(44100),
-			changeFlag(true)
+		Audio()
 		{
-			pSwrContext = spSwrContext(
-				nullptr,
-				[](SwrContext *ptr) {
-				swr_free(&ptr);
-			}
-			);
+			convertedFrame.reset(av_frame_alloc());
+			convertedFrame->format = AVSampleFormat::AV_SAMPLE_FMT_FLT;
+			changeFlag = true;
 		}
 
 		virtual ~Audio() {
 
 		}
 
-		float_t *nextFrame() {
+		uint8_t *nextFrame() {
 			spAVFrame tmpFrame = this->FFmpeg::nextFrame();
 			if (tmpFrame.get() == nullptr) return nullptr;
-			convert(tmpFrame.get());
-			return frameData.get();
+			if (convert(tmpFrame.get()) < 0) return nullptr;
+			return (*(convertedFrame->extended_data));
 		}
 
-		inline void setSampleRate(int32_t rate) {
-			sampleRate = rate;
+		inline void setSampleFormat(AVSampleFormat sampleFormat) {
+			convertedFrame->format = sampleFormat;
 			changeFlag = true;
 		}
 
-		inline int32_t getFrameLength() const { return frameLength; }
-		inline int32_t getFrameChannelSize() const { return frameChannelSize; }
-		inline int32_t getSampleRate() const { return sampleRate; }
+		inline int32_t getFrameLength() const { return convertedFrame->nb_samples; }
+		inline int32_t getFrameChannelSize() const { return convertedFrame->channels; }
+		inline int32_t getSampleRate() const { return convertedFrame->sample_rate; }
 	};
 }
